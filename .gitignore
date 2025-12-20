@@ -1,0 +1,59 @@
+# Environment variables
+.env
+*.env
+!.env.example
+
+# API Keys and Credentials
+*credentials*.json
+*secrets*.json
+*.pem
+*.key
+
+# n8n data
+n8n-data/
+.n8n/
+
+# State files
+state-data/
+/data/state/
+*.state
+
+# Video files (too large)
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+*.mkv
+my_videos/
+gameplay/
+youtube-data/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Docker
+docker-compose.override.yml
+docker-compose.dev.yml
+docker-compose.local.yml
+docker/.env
+docker/.env.local
+docker/.env.dev
+docker/.env.override
+# IDEs and Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+# OS generated files
+.DS_Store
+Thumbs.db

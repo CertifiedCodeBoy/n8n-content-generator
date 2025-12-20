@@ -1,0 +1,969 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "jsCode": "const subreddits = ['AskReddit', 'stories', 'todayilearned', 'WritingPrompts', 'nosleep', 'creepyencounters'];\nconst sortOptions = ['hot', 'top', 'new'];\nconst randomSub = subreddits[Math.floor(Math.random() * subreddits.length)];\nconst randomSort = sortOptions[Math.floor(Math.random() * sortOptions.length)];\nreturn { json: { subreddit: randomSub, sort: randomSort } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                224,
+                -96
+            ],
+            "id": "c876fe39-e7b6-4f32-9e39-2ac8624cbf3a",
+            "name": "Random Subreddit Selector"
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "subreddit": "={{ $json.subreddit }}",
+                "limit": 50,
+                "filters": {
+                    "category": "={{ $json.sort }}"
+                }
+            },
+            "type": "n8n-nodes-base.reddit",
+            "typeVersion": 1,
+            "position": [
+                400,
+                -96
+            ],
+            "id": "ef7ad636-64dd-40bd-b427-f86364dce26a",
+            "name": "Get Reddit Posts",
+            "alwaysOutputData": true,
+            "credentials": {
+                "redditOAuth2Api": {
+                    "id": "YOUR_REDDIT_CREDENTIALS_ID",
+                    "name": "Reddit account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const posts = $input.all();\nconst filtered = posts.filter(post => post.json.score > 50 && post.json.num_comments > 5 && !post.json.stickied && post.json.selftext && post.json.selftext.length > 200);\nif (filtered.length === 0) return { json: { error: 'No suitable posts' } };\nconst bestPost = filtered.sort((a,b) => b.json.score - a.json.score)[0];\nreturn bestPost;"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                576,
+                -96
+            ],
+            "id": "6058afc2-4e0c-451d-b696-c97747b38d7a",
+            "name": "Story Processor"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "f1a06b72-b53b-4874-8c56-06366a96748b",
+                            "leftValue": "={{ $json.error === undefined }}",
+                            "rightValue": "=undefined",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                752,
+                -96
+            ],
+            "id": "9e637339-b1fd-4610-bf13-36d22db59f0c",
+            "name": "Story Valid Check"
+        },
+        {
+            "parameters": {
+                "jsCode": "const text = $json.selftext || $json.title;\nconst cleaned = text.replace(/\\[.*?\\]\\(.*?\\)/g, '').replace(/\\n\\n+/g, '\\n\\n').replace(/&.*?;/g, '').trim();\nreturn { json: { text: cleaned } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                928,
+                -96
+            ],
+            "id": "cfcf901a-d643-4e6a-b8ae-c4dffc579dc3",
+            "name": "Text Processor"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "Process this Reddit story text for text-to-speech narration. Clean and format the story for engaging audio narration, removing any inappropriate content. Then generate complete SRT subtitle file with accurate timestamps based on estimated speaking pace (150 words per minute). Return as JSON with two fields: 'story' (the cleaned story text) and 'srt' (the full SRT file content as string). Story text: {{$json.text}}",
+                "hasOutputParser": true,
+                "needsFallback": true,
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 2.2,
+            "position": [
+                1104,
+                -96
+            ],
+            "id": "82847599-fa60-4eb0-8ff3-236c15557543",
+            "name": "Story AI Processor",
+            "retryOnFail": true
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1104,
+                96
+            ],
+            "id": "e19fd52c-c700-4e2e-9389-fbcd184fb011",
+            "name": "Google Gemini Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "YOUR_GEMINI_CREDENTIALS_ID",
+                    "name": "Google Gemini API"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "schemaType": "manual",
+                "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"story\": {\n      \"type\": \"string\",\n      \"description\": \"Processed story text\"\n    },\n    \"srt\": {\n      \"type\": \"string\", \n      \"description\": \"Complete SRT subtitle file\"\n    }\n  },\n  \"required\": [\"story\", \"srt\"]\n}"
+            },
+            "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+            "typeVersion": 1.3,
+            "position": [
+                1280,
+                96
+            ],
+            "id": "8c2ab9ce-ede3-4407-a820-0df3079ec264",
+            "name": "Story Output Parser"
+        },
+        {
+            "parameters": {
+                "jsCode": "const voices = ['en-US-Neural2-D', 'en-GB-Neural2-B', 'en-AU-Neural2-C', 'en-IN-Neural2-A'];\nconst randomVoice = voices[Math.floor(Math.random() * voices.length)];\nreturn { json: { voice: randomVoice } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1280,
+                -96
+            ],
+            "id": "97e66add-e6fa-4bc2-867f-06997af67a91",
+            "name": "Voice Selector"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "YOUR_TTS_API_URL",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "text",
+                            "value": "={{ $('Story AI Processor').item.json.output.story }}"
+                        },
+                        {
+                            "name": "voice",
+                            "value": "={{ $json.voice }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1456,
+                -96
+            ],
+            "id": "1da565cc-1c16-4946-9354-ee1ea09bbecb",
+            "name": "Generate TTS Audio",
+            "retryOnFail": true
+        },
+        {
+            "parameters": {
+                "fileName": "/data/scripts/story.mp3",
+                "options": {}
+            },
+            "id": "a5cb9f6d-2b17-4732-8afb-2fa82630b37f",
+            "name": "Save Audio File",
+            "type": "n8n-nodes-base.writeBinaryFile",
+            "typeVersion": 1,
+            "position": [
+                1632,
+                -96
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "return { json: { srt: $('Story AI Processor').item.json.output.srt } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1808,
+                -96
+            ],
+            "id": "6c00e589-082e-461d-b86e-1f982cfdc6c2",
+            "name": "SRT Generator"
+        },
+        {
+            "parameters": {
+                "fileName": "/data/scripts/story.srt",
+                "options": {}
+            },
+            "id": "90cf0149-b046-4666-a7fe-dc30f9089fed",
+            "name": "Save SRT File",
+            "type": "n8n-nodes-base.writeBinaryFile",
+            "typeVersion": 1,
+            "position": [
+                1984,
+                -96
+            ]
+        },
+        {
+            "parameters": {
+                "command": "bash /data/scripts/enhanced-video-generator.sh"
+            },
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                2160,
+                -96
+            ],
+            "id": "b0afd479-9e05-4b98-9434-db70a6aed0a8",
+            "name": "Enhanced Video Generator",
+            "retryOnFail": true
+        },
+        {
+            "parameters": {
+                "jsCode": "const output = $json.stdout;\nconst durationMatch = output.match(/Duration: (\\d+\\.?\\d*)/);\nconst duration = durationMatch ? parseFloat(durationMatch[1]) : 60;\nconst action = duration <= 60 ? 'single' : 'multi';\nconst totalParts = Math.ceil(duration / 60);\nreturn { json: { duration, action, totalParts, totalDuration: duration } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                2336,
+                -96
+            ],
+            "id": "duration-checker",
+            "name": "Duration Checker"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "single-video-check",
+                            "leftValue": "={{ $json.action }}",
+                            "rightValue": "single",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                2512,
+                -96
+            ],
+            "id": "single-vs-multi-check",
+            "name": "Single vs Multi Check"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "Generate a viral YouTube Shorts title and description for this Reddit story video. Make the title clickbait and engaging, include #shorts. Description should be compelling and include relevant hashtags. Return as JSON with 'title', 'description', and 'forKids' (boolean) fields. Story: {{$json.story}}",
+                "hasOutputParser": true,
+                "needsFallback": true,
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 2.2,
+            "position": [
+                2688,
+                -200
+            ],
+            "id": "title-generator",
+            "name": "Title & Description Generator",
+            "retryOnFail": true
+        },
+        {
+            "parameters": {
+                "jsonSchemaExample": "{\n  \"title\": \"This Will Shock You #shorts\",\n  \"description\": \"Something incredible...\",\n  \"forKids\": false\n}"
+            },
+            "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+            "typeVersion": 1.3,
+            "position": [
+                2688,
+                -96
+            ],
+            "id": "title-output-parser",
+            "name": "Title Output Parser"
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                2688,
+                8
+            ],
+            "id": "title-gemini-model",
+            "name": "Title Gemini Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "YOUR_GEMINI_CREDENTIALS_ID",
+                    "name": "Google Gemini API"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "command": "ffmpeg -y -i /data/files/final.mp4 -c:v libx264 -crf 23 -preset medium -profile:v baseline -level 3.0 -movflags +faststart -c:a aac -b:a 128k -maxrate 2M -bufsize 4M /data/files/compressed.mp4"
+            },
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                2864,
+                -200
+            ],
+            "id": "compress-single-video",
+            "name": "Compress Single Video"
+        },
+        {
+            "parameters": {
+                "resource": "video",
+                "operation": "upload",
+                "title": "={{ $('title-generator').item.json.title }}",
+                "regionCode": "US",
+                "categoryId": "=",
+                "options": {
+                    "description": "={{ $('title-generator').item.json.description }}",
+                    "notifySubscribers": true,
+                    "privacyStatus": "public",
+                    "selfDeclaredMadeForKids": false
+                }
+            },
+            "type": "n8n-nodes-base.youTube",
+            "typeVersion": 1,
+            "position": [
+                3040,
+                -200
+            ],
+            "id": "upload-single-video",
+            "name": "Upload Single Video",
+            "credentials": {
+                "youTubeOAuth2Api": {
+                    "id": "YOUR_YOUTUBE_CREDENTIALS_ID",
+                    "name": "YouTube account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "chatId": "YOUR_TELEGRAM_CHAT_ID",
+                "text": "✅ Single video uploaded!\nDuration: {{ $('Duration Checker').item.json.duration }}s\nURL: https://www.youtube.com/shorts/{{ $json.id }}",
+                "additionalFields": {
+                    "appendAttribution": false
+                }
+            },
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                3216,
+                -200
+            ],
+            "id": "single-video-notification",
+            "name": "Single Video Notification",
+            "credentials": {
+                "telegramApi": {
+                    "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+                    "name": "Telegram account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "video-url-assignment",
+                            "name": "videoUrl",
+                            "value": "YOUR_VIDEO_SERVER_URL/files/compressed.mp4",
+                            "type": "string"
+                        },
+                        {
+                            "id": "title-assignment",
+                            "name": "videoTitle",
+                            "value": "={{ $('title-generator').item.json.title }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                3392,
+                -200
+            ],
+            "id": "set-single-video-data",
+            "name": "Set Single Video Data"
+        },
+        {
+            "parameters": {
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "YOUR_GOOGLE_SHEET_ID",
+                    "mode": "list"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "Sheet1",
+                    "mode": "list"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "Video Url": "={{ $json.videoUrl }}",
+                        "Title": "={{ $json.videoTitle }}"
+                    }
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.7,
+            "position": [
+                3568,
+                -200
+            ],
+            "id": "log-single-video",
+            "name": "Log Single Video",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "YOUR_GOOGLE_SHEETS_CREDENTIALS_ID",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "batchSize": 1,
+                "options": {}
+            },
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                2688,
+                200
+            ],
+            "id": "split-parts",
+            "name": "Split Parts"
+        },
+        {
+            "parameters": {
+                "command": "bash /data/scripts/part-processor.sh"
+            },
+            "type": "n8n-nodes-base.executeCommand",
+            "typeVersion": 1,
+            "position": [
+                2864,
+                200
+            ],
+            "id": "create-video-part",
+            "name": "Create Video Part"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Parse video part output\nconst output = JSON.parse($json.stdout);\nreturn { json: output };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                3040,
+                200
+            ],
+            "id": "parse-part-output",
+            "name": "Parse Part Output"
+        },
+        {
+            "parameters": {
+                "resource": "video",
+                "operation": "upload",
+                "title": "={{ $json.title }}",
+                "regionCode": "US",
+                "categoryId": "=",
+                "options": {
+                    "description": "={{ $('title-generator').item.json.description + '\\n\\nThis is part ' + $json.partNumber + ' of ' + $json.totalParts + ' in this story series.' }}",
+                    "notifySubscribers": true,
+                    "privacyStatus": "public",
+                    "selfDeclaredMadeForKids": false
+                }
+            },
+            "type": "n8n-nodes-base.youTube",
+            "typeVersion": 1,
+            "position": [
+                3216,
+                200
+            ],
+            "id": "upload-video-part",
+            "name": "Upload Video Part",
+            "credentials": {
+                "youTubeOAuth2Api": {
+                    "id": "YOUR_YOUTUBE_CREDENTIALS_ID",
+                    "name": "YouTube account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "chatId": "YOUR_TELEGRAM_CHAT_ID",
+                "text": "✅ Part {{ $json.partNumber }}/{{ $('parse-part-output').item.json.totalParts }} uploaded!\nURL: https://www.youtube.com/shorts/{{ $json.id }}",
+                "additionalFields": {
+                    "appendAttribution": false
+                }
+            },
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                3392,
+                200
+            ],
+            "id": "part-upload-notification",
+            "name": "Part Upload Notification",
+            "credentials": {
+                "telegramApi": {
+                    "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+                    "name": "Telegram account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "is-last-part",
+                            "leftValue": "={{ $('split-parts').context.noItemsLeft }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                3568,
+                200
+            ],
+            "id": "check-if-last-part",
+            "name": "Check If Last Part"
+        },
+        {
+            "parameters": {
+                "chatId": "YOUR_TELEGRAM_CHAT_ID",
+                "text": "🎉 All parts uploaded successfully!\nTotal parts: {{ $('Duration Checker').item.json.totalParts }}\nFull video duration: {{ $('Duration Checker').item.json.totalDuration }}s",
+                "additionalFields": {
+                    "appendAttribution": false
+                }
+            },
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                3744,
+                200
+            ],
+            "id": "all-parts-complete-notification",
+            "name": "All Parts Complete",
+            "credentials": {
+                "telegramApi": {
+                    "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+                    "name": "Telegram account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Random Subreddit Selector": {
+            "main": [
+                [
+                    {
+                        "node": "Get Reddit Posts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Reddit Posts": {
+            "main": [
+                [
+                    {
+                        "node": "Story Processor",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Story Processor": {
+            "main": [
+                [
+                    {
+                        "node": "Story Valid Check",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Story Valid Check": {
+            "main": [
+                [
+                    {
+                        "node": "Text Processor",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        },
+        "Text Processor": {
+            "main": [
+                [
+                    {
+                        "node": "Story AI Processor",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Story AI Processor": {
+            "main": [
+                [
+                    {
+                        "node": "Voice Selector",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Story AI Processor",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Story Output Parser": {
+            "ai_outputParser": [
+                [
+                    {
+                        "node": "Story AI Processor",
+                        "type": "ai_outputParser",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Voice Selector": {
+            "main": [
+                [
+                    {
+                        "node": "Generate TTS Audio",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate TTS Audio": {
+            "main": [
+                [
+                    {
+                        "node": "Save Audio File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save Audio File": {
+            "main": [
+                [
+                    {
+                        "node": "SRT Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "SRT Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Save SRT File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save SRT File": {
+            "main": [
+                [
+                    {
+                        "node": "Enhanced Video Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enhanced Video Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Duration Checker",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Duration Checker": {
+            "main": [
+                [
+                    {
+                        "node": "Single vs Multi Check",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Single vs Multi Check": {
+            "main": [
+                [
+                    {
+                        "node": "Title & Description Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Split Parts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Title & Description Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Compress Single Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Title Output Parser": {
+            "ai_outputParser": [
+                [
+                    {
+                        "node": "Title & Description Generator",
+                        "type": "ai_outputParser",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Title Gemini Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Title & Description Generator",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Compress Single Video": {
+            "main": [
+                [
+                    {
+                        "node": "Upload Single Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Upload Single Video": {
+            "main": [
+                [
+                    {
+                        "node": "Single Video Notification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Single Video Notification": {
+            "main": [
+                [
+                    {
+                        "node": "Set Single Video Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Set Single Video Data": {
+            "main": [
+                [
+                    {
+                        "node": "Log Single Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split Parts": {
+            "main": [
+                [
+                    {
+                        "node": "Create Video Part",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create Video Part": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Part Output",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Part Output": {
+            "main": [
+                [
+                    {
+                        "node": "Upload Video Part",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Upload Video Part": {
+            "main": [
+                [
+                    {
+                        "node": "Part Upload Notification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Part Upload Notification": {
+            "main": [
+                [
+                    {
+                        "node": "Check If Last Part",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check If Last Part": {
+            "main": [
+                [
+                    {
+                        "node": "All Parts Complete",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "templateCredsSetupCompleted": false
+    }
+}

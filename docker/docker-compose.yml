@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: generate-videos-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-chnge_this_password}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - TZ=${TIMEZONE:-America/New_York}
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+      - N8N_PAYLOAD_SIZE_MAX=64
+      - N8N_METRICS=true
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ${HOST_STATE_DIR:-./state-data}:/data/state
+      - ${HOST_FILES_DIR:-./my_videos}:/data/files
+      - ${HOST_GAMEPLAY_DIR:-./gameplay}:/data/gameplay
+      - ${HOST_SCRIPTS_DIR:-./n8n-scripts}:/data/scripts
+      - ${HOST_YOUTUBE_DIR:-./youtube-data}:/data/youtube
+      
+    networks:
+      - reddit-video-net
+    
+    command: >
+      sh -c "
+        apk add --no-cache ffmpeg jq bc &&
+        n8n start
+      "
+
+volumes:
+  n8n_data:
+    driver: local
+
+networks:
+  reddit-video-net:
+    driver: bridge
